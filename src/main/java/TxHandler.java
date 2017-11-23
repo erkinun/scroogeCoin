@@ -1,4 +1,5 @@
-import java.util.function.BinaryOperator;
+import java.util.List;
+import java.util.stream.Collectors;
 
 public class TxHandler {
 
@@ -32,6 +33,7 @@ public class TxHandler {
 
         if (!check1) return false;
 
+        // check 2
         boolean check2 = tx.getInputs().stream().reduce(true,
                 (result, input) -> {
                     Transaction.Output output = _mUtxoPool.getTxOutput(new UTXO(input.prevTxHash, input.outputIndex));
@@ -41,7 +43,45 @@ public class TxHandler {
 
         if (!check2) return false;
 
-        throw new RuntimeException("not implemented yet!");
+        //check 3
+        List<UTXO> allUtxos = tx.getInputs()
+                .stream()
+                .map(input -> new UTXO(input.prevTxHash, input.outputIndex))
+                .collect(Collectors.toList());
+
+        List<UTXO> distinctUtxos = allUtxos.stream().distinct().collect(Collectors.toList());
+        boolean check3 = allUtxos.size() == distinctUtxos.size();
+
+        if (!check3) return false;
+
+        // check 4
+        // all outputs are non-negative
+        boolean check4 = tx.getOutputs()
+                .stream()
+                .reduce(true,
+                        (result, output) -> Double.compare(output.value, 0.0) > 0.0,
+                        (b1, b2) -> b1 && b2);
+
+        if (!check4) return false;
+
+        // check 5
+        // sum of inputs must be greater than or equal to outputs
+        Double inputSum = tx.getInputs()
+                .stream()
+                .map(input -> new UTXO(input.prevTxHash, input.outputIndex))
+                .reduce(0.0,
+                        (acc, utxo) -> acc + _mUtxoPool.getTxOutput(utxo).value,
+                        (acc1, acc2) -> acc1 + acc2);
+
+        Double outputSum = tx.getOutputs()
+                .stream()
+                .reduce(0.0,
+                        (acc, output) -> acc + output.value,
+                        (acc1, acc2) -> acc1 + acc2);
+
+        boolean check5 = Double.compare(inputSum, outputSum) >= 0;
+
+        return check5;
     }
 
     /**
