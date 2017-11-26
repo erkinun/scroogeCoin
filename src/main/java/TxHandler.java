@@ -32,16 +32,20 @@ public class TxHandler {
 
         // check 1
         boolean check1 = tx.getInputs().stream().reduce(true,
-                (result, input) -> _mUtxoPool.contains(new UTXO(input.prevTxHash, input.outputIndex)),
+                (result, input) -> result && _mUtxoPool.contains(new UTXO(input.prevTxHash, input.outputIndex)),
                 (aBoolean, aBoolean2) -> aBoolean && aBoolean2);
 
         if (!check1) return false;
 
         // check 2
+
         boolean check2 = tx.getInputs().stream().reduce(true,
                 (result, input) -> {
                     Transaction.Output output = _mUtxoPool.getTxOutput(new UTXO(input.prevTxHash, input.outputIndex));
-                    return Crypto.verifySignature(output.address, tx.getRawDataToSign(input.outputIndex), input.signature);
+                    return result && Crypto.verifySignature(
+                            output.address,
+                            tx.getRawDataToSign(tx.getInputs().indexOf(input)),
+                            input.signature);
                 },
                 (bool1, bool2) -> bool1 && bool2);
 
@@ -63,7 +67,7 @@ public class TxHandler {
         boolean check4 = tx.getOutputs()
                 .stream()
                 .reduce(true,
-                        (result, output) -> Double.compare(output.value, 0.0) > 0.0,
+                        (result, output) -> result && Double.compare(output.value, 0.0) > 0.0,
                         (b1, b2) -> b1 && b2);
 
         if (!check4) return false;
@@ -92,6 +96,14 @@ public class TxHandler {
      * Handles each epoch by receiving an unordered array of proposed transactions, checking each
      * transaction for correctness, returning a mutually valid array of accepted transactions, and
      * updating the current UTXO pool as appropriate.
+     */
+
+    /**
+     * Failing tests:
+     * Test 11: test handleTransactions() with simple and valid transactions with some double spends
+     * Test 12: test handleTransactions() with valid but some transactions are simple, some depend on other transactions
+     * Test 14: test handleTransactions() with complex Transactions
+     * Test 15: test handleTransactions() with simple, valid transactions being called again to check for changes made in the pool
      */
     public Transaction[] handleTxs(Transaction[] possibleTxs) {
         // IMPLEMENT THIS
