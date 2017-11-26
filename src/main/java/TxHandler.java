@@ -1,5 +1,9 @@
+import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 public class TxHandler {
 
@@ -91,7 +95,32 @@ public class TxHandler {
      */
     public Transaction[] handleTxs(Transaction[] possibleTxs) {
         // IMPLEMENT THIS
-        throw new RuntimeException("not implemented yet!");
+
+        List<Transaction> acceptedTrnx = Arrays.stream(possibleTxs)
+                .filter(this::isValidTx).collect(Collectors.toList());
+
+        // update utxo pool
+        Stream<UTXO> toBeRemoved = acceptedTrnx
+                .stream()
+                .flatMap(tx -> tx.getInputs()
+                        .stream()
+                        .map(is -> new UTXO(is.prevTxHash, is.outputIndex)));
+
+        toBeRemoved.forEach(utxo -> _mUtxoPool.removeUTXO(utxo));
+
+        Map<UTXO, Transaction.Output> stupidMap = new HashMap<>();
+        Stream<UTXO> toBeAdded = acceptedTrnx.stream()
+                .flatMap(tx -> tx.getOutputs().stream()
+                .map(output -> {
+
+                    UTXO addMe = new UTXO(tx.getHash(),tx.getOutputs().indexOf(output));
+                    stupidMap.put(addMe, output); // mutable operation !!
+                    return addMe;
+                }));
+
+        toBeAdded.forEach(utxo -> _mUtxoPool.addUTXO(utxo, stupidMap.get(utxo)));
+
+        return acceptedTrnx.toArray(new Transaction[0]);
     }
 
 }
